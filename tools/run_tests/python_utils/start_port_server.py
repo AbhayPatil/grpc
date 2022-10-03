@@ -65,7 +65,7 @@ def start_port_server():
         logging.info('starting port_server, with log file %s', logfile)
         args = [
             sys.executable,
-            os.path.abspath('tools/run_tests/python_utils/port_server.py'),
+            os.path.abspath('python_utils/port_server.py'),
             '-p',
             '%d' % _PORT_SERVER_PORT, '-l', logfile
         ]

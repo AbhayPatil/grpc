@@ -31,28 +31,37 @@
 namespace grpc {
 namespace testing {
 
-static const int WARMUP = 1;
-static const int BENCHMARK = 3;
+static const int WARMUP = 2;
+static const int BENCHMARK = 4;
 
-static void RunSynchronousUnaryPingPong() {
+static void RunAsynchronousUnaryPingPong() {
   gpr_log(GPR_INFO, "Running Synchronous Unary Ping Pong");
 
   ClientConfig client_config;
-  client_config.set_client_type(SYNC_CLIENT);
+  client_config.set_client_type(ASYNC_CLIENT);
   client_config.set_outstanding_rpcs_per_channel(1);
   client_config.set_client_channels(1);
   client_config.set_rpc_type(UNARY);
   client_config.mutable_load_params()->mutable_closed_loop();
+  
+  // client_config.set_async_client_threads(1);
+  // client_config.set_client_processes(0);
+  // client_config.set_threads_per_cq(0);
+
+  // auto* h = client_config.mutable_histogram_params();
+  // h->set_resolution(0.01);
+  // h->set_max_possible(60000000000.0);
+  
 
   ServerConfig server_config;
-  server_config.set_server_type(SYNC_SERVER);
+  server_config.set_server_type(ASYNC_SERVER);
 
-  // Set up security params
-  SecurityParams security;
-  security.set_use_test_ca(true);
-  security.set_server_host_override("foo.test.google.fr");
-  client_config.mutable_security_params()->CopyFrom(security);
-  server_config.mutable_security_params()->CopyFrom(security);
+  // // Set up security params
+  // SecurityParams security;
+  // security.set_use_test_ca(true);
+  // security.set_server_host_override("foo.test.google.fr");
+  // client_config.mutable_security_params()->CopyFrom(security);
+  // server_config.mutable_security_params()->CopyFrom(security);
 
   const auto result =
       RunScenario(client_config, 1, server_config, 1, WARMUP, BENCHMARK, -2, "",
@@ -60,6 +69,16 @@ static void RunSynchronousUnaryPingPong() {
 
   GetReporter()->ReportQPS(*result);
   GetReporter()->ReportLatency(*result);
+
+  gpr_log(GPR_INFO, "Result Summary:\n");
+  gpr_log(GPR_INFO, result->summary().DebugString().c_str());
+
+  gpr_log(GPR_INFO, "Server Config:");
+  gpr_log(GPR_INFO, server_config.DebugString().c_str());
+
+  gpr_log(GPR_INFO, "Client Config:");
+  gpr_log(GPR_INFO, client_config.DebugString().c_str());
+
 }
 
 }  // namespace testing
@@ -69,6 +88,6 @@ int main(int argc, char** argv) {
   grpc::testing::TestEnvironment env(&argc, argv);
   grpc::testing::InitTest(&argc, &argv, true);
 
-  grpc::testing::RunSynchronousUnaryPingPong();
+  grpc::testing::RunAsynchronousUnaryPingPong();
   return 0;
 }

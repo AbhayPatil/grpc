@@ -71,29 +71,14 @@ class ClientRequestCreator<SimpleRequest> {
   ClientRequestCreator(SimpleRequest* req,
                        const PayloadConfig& payload_config) {
     if (payload_config.has_bytebuf_params()) {
-      gpr_log(GPR_ERROR,
-              "Invalid PayloadConfig, config cannot have bytebuf_params: %s",
-              payload_config.DebugString().c_str());
-      GPR_ASSERT(false);  // not appropriate for this specialization
     } else if (payload_config.has_simple_params()) {
-      req->set_response_type(grpc::testing::PayloadType::COMPRESSABLE);
-      req->set_response_size(payload_config.simple_params().resp_size());
-      req->mutable_payload()->set_type(
-          grpc::testing::PayloadType::COMPRESSABLE);
-      int size = payload_config.simple_params().req_size();
-      std::unique_ptr<char[]> body(new char[size]);
-      req->mutable_payload()->set_body(body.get(), size);
     } else if (payload_config.has_complex_params()) {
-      gpr_log(GPR_ERROR,
-              "Invalid PayloadConfig, cannot have complex_params: %s",
-              payload_config.DebugString().c_str());
-      GPR_ASSERT(false);  // not appropriate for this specialization
     } else {
       // default should be simple proto without payloads
-      req->set_response_type(grpc::testing::PayloadType::COMPRESSABLE);
+      // req->set_response_type(grpc::testing::PayloadType::COMPRESSABLE);
       req->set_response_size(0);
-      req->mutable_payload()->set_type(
-          grpc::testing::PayloadType::COMPRESSABLE);
+      // req->mutable_payload()->set_type(
+      //    grpc::testing::PayloadType::COMPRESSABLE);
     }
   }
 };
@@ -271,6 +256,7 @@ class Client {
 
     void BeginSwap(Histogram* n, StatusHistogram* s) {
       std::lock_guard<std::mutex> g(mu_);
+      PopulateHistogram();
       n->Swap(&histogram_);
       s->swap(statuses_);
     }
@@ -308,6 +294,46 @@ class Client {
       }
     }
 
+    struct MyEntry {
+      HistogramEntry entry;
+      double now;
+    };
+
+    void AddMyEntry(HistogramEntry* entry_ptr) {
+      double now = UsageTimer::Now();
+      my_entries_.push_back({*entry_ptr, now});
+    }
+
+    void PopulateHistogram() {
+      for (const auto& myentry: my_entries_) {
+        MyUpdateHistogram(myentry);
+      }
+      // gpr_log(GPR_INFO, "PopulateHistogram ADDED %zu samples", my_entries_.size());
+      my_entries_.clear();
+    }
+
+    void MyUpdateHistogram(const MyEntry& myentry) {
+      if (myentry.entry.value_used()) {
+        histogram_.Add(myentry.entry.value());
+        if (client_->GetLatencyCollectionIntervalInSeconds() > 0) {
+          histogram_per_interval_.Add(myentry.entry.value());
+          double now = myentry.now;
+          if ((now - interval_start_time_) >=
+              client_->GetLatencyCollectionIntervalInSeconds()) {
+            // Record the median latency of requests from the last interval.
+            // Divide by 1e3 to get microseconds.
+            medians_each_interval_list_.push_back(
+                histogram_per_interval_.Percentile(50) / 1e3);
+            histogram_per_interval_.Reset();
+            interval_start_time_ = now;
+          }
+        }
+      }
+      if (myentry.entry.status_used()) {
+        statuses_[myentry.entry.status()]++;
+      }
+    }
+
    private:
     Thread(const Thread&);
     Thread& operator=(const Thread&);
@@ -327,6 +353,7 @@ class Client {
       client_->CompleteThread();
     }
 
+    std::vector<MyEntry> my_entries_;
     std::mutex mu_;
     Histogram histogram_;
     StatusHistogram statuses_;
