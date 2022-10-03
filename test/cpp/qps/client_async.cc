@@ -92,8 +92,10 @@ class ClientRpcContextUnaryImpl : public ClientRpcContext {
     switch (next_state_) {
       case State::READY:
         start_ = UsageTimer::Now();
-        response_reader_ = prepare_req_(stub_, &context_, req_, cq_);
-        response_reader_->StartCall();
+        // response_reader_ = prepare_req_(stub_, &context_, req_, cq_);
+        // response_reader_->StartCall();
+
+        response_reader_ = stub_->AsyncUnaryCall( &context_, req_, cq_);
         next_state_ = State::RESP_DONE;
         response_reader_->Finish(&response_, &status_,
                                  ClientRpcContext::tag(this));
@@ -245,12 +247,6 @@ class AsyncClient : public ClientImpl<StubType, RequestType> {
     if (shutdown_state_[thread_idx]->shutdown) {
       ctx->TryCancel();
       delete ctx;
-      bool ok;
-      while (cli_cqs_[cq_[thread_idx]]->Next(&tag, &ok)) {
-        ctx = ClientRpcContext::detag(tag);
-        ctx->TryCancel();
-        delete ctx;
-      }
       return nullptr;
     }
     return ctx;
@@ -260,14 +256,17 @@ class AsyncClient : public ClientImpl<StubType, RequestType> {
     void* got_tag;
     bool ok;
 
+    gpr_log (GPR_ERROR, "abhay ThreadFunc 11");
     HistogramEntry entry;
     HistogramEntry* entry_ptr = &entry;
     auto cli_cqs_index = cq_[thread_idx];
     if (!cli_cqs_[cli_cqs_index]->Next(&got_tag, &ok)) {
+      gpr_log (GPR_ERROR, "abhay ThreadFunc 12");
       return;
     }
     ClientRpcContext* ctx = ProcessTag(thread_idx, got_tag);
     if (ctx == nullptr) {
+      gpr_log (GPR_ERROR, "abhay ThreadFunc 13");
       return;
     }
     while (cli_cqs_[cli_cqs_index]->DoThenAsyncNext(
@@ -285,9 +284,12 @@ class AsyncClient : public ClientImpl<StubType, RequestType> {
 
       ctx = ProcessTag(thread_idx, got_tag);
       if (ctx == nullptr) {
+        gpr_log (GPR_ERROR, "abhay ThreadFunc 14");
         return;
       }
     }
+    gpr_log (GPR_ERROR, "abhay ThreadFunc 15");
+
 
   }
 

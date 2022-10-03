@@ -348,8 +348,10 @@ class Client {
                 idx_, wait_loop);
         wait_loop++;
       }
-
+      
+      gpr_log (GPR_ERROR, "abhay ThreadFunc 21");
       client_->ThreadFunc(idx_, this);
+      gpr_log (GPR_ERROR, "abhay ThreadFunc 22");
       client_->CompleteThread();
     }
 
